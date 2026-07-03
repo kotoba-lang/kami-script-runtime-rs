@@ -568,7 +568,6 @@ impl App {
                 depth_stencil_attachment: None,
                 timestamp_writes: None,
                 occlusion_query_set: None,
-                multiview: None,
             });
             rp.set_bind_group(0, &gpu.bind_group, &[]);
             rp.set_pipeline(&gpu.bg_pipeline);
