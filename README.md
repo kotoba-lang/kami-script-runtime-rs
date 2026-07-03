@@ -1,5 +1,7 @@
 # kami-script-runtime-rs
 
+> **Note**: `gftdcojp/isekai-network` (referenced below) is archived — its content moved to `gftdcojp/network-isekai/public/games/gftd/shiro-pico/`.
+
 The missing WASM **host** half of the kotoba-lang engine stack.
 [`kami-engine-clj`](https://github.com/kotoba-lang/kami-engine/tree/main/kami-engine-clj)
 (CLJC, consolidated from a short-lived standalone `kotoba-lang/engine` repo —
