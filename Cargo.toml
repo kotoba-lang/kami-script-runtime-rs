@@ -8,6 +8,10 @@ description = "WASM host (wasmtime) binding kami:engine/* imports to a minimal i
 wasmtime = "27"
 thiserror = "2"
 wasmi = "1.1.0"
+winit = "0.30"
+wgpu = "24"
+pollster = "0.4.0"
+bytemuck = { version = "1.25.0", features = ["derive"] }
 
 [[bin]]
 name = "kami-host"
