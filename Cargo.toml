@@ -1,0 +1,13 @@
+[package]
+name = "kami-script-runtime-rs"
+version = "0.1.0"
+edition = "2021"
+description = "WASM host (wasmtime) binding kami:engine/* imports to a minimal in-memory ECS store, driving compiled kotoba-lang/engine modules. Recovered/reimplemented substrate: the original kami-script-runtime (kotoba-lang/kami-engine, deleted in the clj-wgsl migration) was classified :stay-Rust-substrate and should never have been removed without a replacement; this repo restores the missing WASM-host half only (bind_scene/bind_input/bind_random/bind_time), scoped to what kotoba-lang/engine's Module IR compiler actually emits today."
+
+[dependencies]
+wasmtime = "27"
+thiserror = "2"
+
+[[bin]]
+name = "kami-host"
+path = "src/bin/kami_host.rs"
