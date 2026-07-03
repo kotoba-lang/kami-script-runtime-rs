@@ -31,6 +31,10 @@
 //! backend differs).
 
 use std::collections::HashMap;
+
+pub mod wasmi_host;
+pub use wasmi_host::KamiHostWasmi;
+
 use wasmtime::{Caller, Engine, Extern, Instance, Linker, Module, Store as WasmtimeStore};
 
 // ---------------------------------------------------------------------------
@@ -41,6 +45,10 @@ use wasmtime::{Caller, Engine, Extern, Instance, Linker, Module, Store as Wasmti
 pub enum RuntimeError {
     #[error("wasm backend error: {0}")]
     Backend(#[from] wasmtime::Error),
+    #[error("wasmi backend error: {0}")]
+    WasmiBackend(#[from] wasmi::Error),
+    #[error("wasmi linker error: {0}")]
+    WasmiLinker(#[from] wasmi::errors::LinkerError),
     #[error("missing export `{0}`")]
     MissingExport(String),
 }
@@ -60,8 +68,8 @@ pub struct Entity {
 #[derive(Default)]
 pub struct EcsStore {
     next_id: u32,
-    entities: HashMap<u32, Entity>,
-    tags: HashMap<u32, String>,
+    pub(crate) entities: HashMap<u32, Entity>,
+    pub(crate) tags: HashMap<u32, String>,
 }
 
 impl EcsStore {
@@ -367,7 +375,7 @@ fn read_uleb(b: &[u8], mut off: usize) -> (u64, usize) {
     (val, off)
 }
 
-fn ordered_tick_exports(wasm: &[u8]) -> Vec<String> {
+pub(crate) fn ordered_tick_exports(wasm: &[u8]) -> Vec<String> {
     let mut names = Vec::new();
     if wasm.len() < 8 {
         return names;

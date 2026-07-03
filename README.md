@@ -97,3 +97,16 @@ cargo test
 - `render`/`audio`/`physics` bindings (see table above).
 - Golden-frame determinism testing across `wasmtime` vs. a future `wasmi` backend
   (the original's ADR-0037 claim — untestable until `wasmi` exists here).
+
+## wasmi (no-JIT) backend
+
+`KamiHostWasmi` (`src/wasmi_host.rs`) is a `wasmi`-backed twin of `KamiHost`
+with the identical public API and the same 14 host-import bindings, ported
+in parallel rather than behind a shared trait (kept simple for a first
+pass — a shared trait/generic-over-backend refactor is a reasonable
+follow-up, not done here). `tests/wasmi_parity.rs` runs isekai-network's
+real compiled module through both backends for 200 ticks and asserts
+bit-for-bit identical entity state (position/velocity/tag/count) — this is
+the "golden-frame" parity the original recovered design's docs called for
+("two WASM backends, one binding codebase... deterministic: both backends
+produce bit-identical runs"), verified for real, not assumed.

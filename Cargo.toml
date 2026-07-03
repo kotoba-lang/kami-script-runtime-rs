@@ -7,6 +7,7 @@ description = "WASM host (wasmtime) binding kami:engine/* imports to a minimal i
 [dependencies]
 wasmtime = "27"
 thiserror = "2"
+wasmi = "1.1.0"
 
 [[bin]]
 name = "kami-host"
