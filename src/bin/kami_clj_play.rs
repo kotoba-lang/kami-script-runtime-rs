@@ -92,7 +92,11 @@ fn parse_scene(src: &str) -> Scene {
         .unwrap_or_else(|| "kami-clj-play".to_string());
 
     let mut profiles = HashMap::new();
-    for tag in ["shiro-pico", "ghost", "beat-spark"] {
+    // "shiro-eye"/"pico-eye" are render-only accent profiles layered on top
+    // of the shared "shiro-pico" body entity (see author.clj's comment) —
+    // not separate ECS entities, just additional entries in this same
+    // author.clj-generated :render/profiles map.
+    for tag in ["shiro-pico", "shiro-eye", "pico-eye", "ghost", "beat-spark"] {
         if let Some(p) = profile_block(src, tag) {
             profiles.insert(tag.to_string(), p);
         }
@@ -289,10 +293,14 @@ struct App {
     frames: u64,
     // headless verification mode: exit after N frames instead of running forever
     max_frames: Option<u64>,
+    // if set, capture a real offscreen frame (render-to-texture -> PNG) on
+    // the max_frames frame, for pixel-level verification instead of trusting
+    // "it ran without crashing" alone.
+    screenshot_path: Option<String>,
 }
 
 impl App {
-    fn new(wasm: &[u8], scene: Scene, max_frames: Option<u64>) -> Self {
+    fn new(wasm: &[u8], scene: Scene, max_frames: Option<u64>, screenshot_path: Option<String>) -> Self {
         Self {
             window: None,
             gpu: None,
@@ -310,6 +318,7 @@ impl App {
             step_ms: 0.0,
             frames: 0,
             max_frames,
+            screenshot_path,
         }
     }
 
@@ -518,14 +527,6 @@ impl App {
             );
         }
 
-        if let Some(max) = self.max_frames {
-            if self.frames >= max {
-                println!("kami-clj-play: reached max-frames={max}, exiting (headless verification mode).");
-                event_loop.exit();
-                return;
-            }
-        }
-
         let Some(gpu) = self.gpu.as_mut() else { return };
         let aspect = gpu.config.width as f32 / gpu.config.height as f32;
         let to_ndc = |w: [f32; 2]| -> [f32; 2] { [(w[0] - player[0]) * scale * aspect, (w[1] - player[1]) * scale] };
@@ -538,7 +539,26 @@ impl App {
         for (tag, pos, _) in &ents {
             let Some(prof) = profiles.get(tag) else { continue };
             let r = if prof.pulse { prof.size + 0.004 * (time * 6.0).sin() } else { prof.size };
-            inst.push(Instance { center: to_ndc(*pos), radius: r, glow: prof.glow, color: prof.color, _pad: 0.0 });
+            let center = to_ndc(*pos);
+            inst.push(Instance { center, radius: r, glow: prof.glow, color: prof.color, _pad: 0.0 });
+            // Shiro & Pico eye-glow accents: the duo is one controllable ECS
+            // entity in this game mode (design/01-netsurvivors.edn
+            // :concept/genre-note), so we can't render two separate
+            // characters as two separate sprites — instead we layer two
+            // small glowing "eye" accents (teal=Shiro, lime=Pico) on the
+            // shared white-hood body at a fixed screen-space offset, so both
+            // characters stay visually present on the one silhouette this
+            // single-entity design allows.
+            if tag == "shiro-pico" {
+                if let Some(eye) = profiles.get("shiro-eye") {
+                    let er = eye.size + 0.002 * (time * 6.0).sin();
+                    inst.push(Instance { center: [center[0] - 0.014, center[1] + 0.012], radius: er, glow: eye.glow, color: eye.color, _pad: 0.0 });
+                }
+                if let Some(eye) = profiles.get("pico-eye") {
+                    let er = eye.size + 0.002 * (time * 7.0).sin();
+                    inst.push(Instance { center: [center[0] + 0.014, center[1] + 0.012], radius: er, glow: eye.glow, color: eye.color, _pad: 0.0 });
+                }
+            }
         }
 
         let count = inst.len().min(gpu.instance_cap as usize) as u32;
@@ -584,7 +604,122 @@ impl App {
         if let Some(w) = self.window.as_ref() {
             w.set_title(&format!("{} · entities {} · {:.0} fps  [F1 debug]", self.scene.title, entity_count, self.fps));
         }
+
+        if let Some(max) = self.max_frames {
+            if self.frames >= max {
+                if let Some(path) = self.screenshot_path.clone() {
+                    // Real pixel-level capture: render the SAME instances
+                    // this frame already presented into an offscreen
+                    // COPY_SRC texture and read it back, rather than trusting
+                    // "the window opened and didn't crash" as verification.
+                    capture_screenshot(gpu, count, path.as_str());
+                }
+                println!("kami-clj-play: reached max-frames={max}, exiting (headless verification mode).");
+                event_loop.exit();
+            }
+        }
     }
+}
+
+/// Render the currently-uploaded instance buffer (globals/instances already
+/// written to `gpu` by the caller's normal frame) into a dedicated offscreen
+/// `COPY_SRC` texture, read it back to CPU, and write it as a PNG. Used only
+/// on the verification `max_frames` frame — not part of the normal display
+/// loop, so its extra draw call has no steady-state perf cost.
+fn capture_screenshot(gpu: &Gpu, instance_count: u32, path: &str) {
+    let (width, height) = (gpu.config.width, gpu.config.height);
+    let tex = gpu.device.create_texture(&wgpu::TextureDescriptor {
+        label: Some("capture-target"),
+        size: wgpu::Extent3d { width, height, depth_or_array_layers: 1 },
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format: gpu.config.format,
+        usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
+        view_formats: &[],
+    });
+    let view = tex.create_view(&wgpu::TextureViewDescriptor::default());
+
+    let mut enc = gpu
+        .device
+        .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("capture-enc") });
+    {
+        let mut rp = enc.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("capture-scene"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: &view,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(wgpu::Color { r: 0.05, g: 0.06, b: 0.10, a: 1.0 }),
+                    store: wgpu::StoreOp::Store,
+                },
+            })],
+            depth_stencil_attachment: None,
+            timestamp_writes: None,
+            occlusion_query_set: None,
+        });
+        rp.set_bind_group(0, &gpu.bind_group, &[]);
+        rp.set_pipeline(&gpu.bg_pipeline);
+        rp.draw(0..3, 0..1);
+        if instance_count > 0 {
+            rp.set_pipeline(&gpu.sprite_pipeline);
+            rp.set_vertex_buffer(0, gpu.instance_buffer.slice(..));
+            rp.draw(0..6, 0..instance_count);
+        }
+    }
+
+    // wgpu requires copy-destination row pitch aligned to 256 bytes.
+    let bytes_per_pixel: u32 = 4;
+    let unpadded_bpr = width * bytes_per_pixel;
+    let align = wgpu::COPY_BYTES_PER_ROW_ALIGNMENT;
+    let padded_bpr = unpadded_bpr.div_ceil(align) * align;
+
+    let out_buf = gpu.device.create_buffer(&wgpu::BufferDescriptor {
+        label: Some("capture-readback"),
+        size: (padded_bpr * height) as u64,
+        usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+        mapped_at_creation: false,
+    });
+    enc.copy_texture_to_buffer(
+        wgpu::TexelCopyTextureInfo { texture: &tex, mip_level: 0, origin: wgpu::Origin3d::ZERO, aspect: wgpu::TextureAspect::All },
+        wgpu::TexelCopyBufferInfo {
+            buffer: &out_buf,
+            layout: wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(padded_bpr), rows_per_image: Some(height) },
+        },
+        wgpu::Extent3d { width, height, depth_or_array_layers: 1 },
+    );
+    gpu.queue.submit(Some(enc.finish()));
+
+    let slice = out_buf.slice(..);
+    let (tx, rx) = std::sync::mpsc::channel();
+    slice.map_async(wgpu::MapMode::Read, move |r| {
+        let _ = tx.send(r);
+    });
+    gpu.device.poll(wgpu::Maintain::Wait);
+    rx.recv().expect("map_async channel closed").expect("buffer map failed");
+
+    let mapped = slice.get_mapped_range();
+    let mut rgba = vec![0u8; (width * height * 4) as usize];
+    for y in 0..height {
+        let src = (y * padded_bpr) as usize;
+        let dst = (y * width * 4) as usize;
+        rgba[dst..dst + (width * 4) as usize].copy_from_slice(&mapped[src..src + (width * 4) as usize]);
+    }
+    drop(mapped);
+    out_buf.unmap();
+
+    // The swapchain/offscreen format is commonly a Bgra variant on macOS/most
+    // desktop backends — swap to RGBA byte order for `image` if so, rather
+    // than assuming.
+    if format!("{:?}", gpu.config.format).starts_with("Bgra") {
+        for px in rgba.chunks_mut(4) {
+            px.swap(0, 2);
+        }
+    }
+
+    let img = image::RgbaImage::from_raw(width, height, rgba).expect("capture buffer size mismatch");
+    img.save(path).expect("failed to write screenshot PNG");
+    eprintln!("kami-clj-play: screenshot written to {path} ({width}x{height}, format={:?})", gpu.config.format);
 }
 
 impl ApplicationHandler for App {
@@ -659,9 +794,13 @@ fn main() {
     );
 
     let max_frames: Option<u64> = std::env::var("KAMI_MAX_FRAMES").ok().and_then(|s| s.parse().ok());
+    let screenshot_path: Option<String> = std::env::var("KAMI_SCREENSHOT").ok();
+    if screenshot_path.is_some() && max_frames.is_none() {
+        eprintln!("kami-clj-play: KAMI_SCREENSHOT set without KAMI_MAX_FRAMES — screenshot only fires on the max-frames frame, set both.");
+    }
 
     let event_loop = EventLoop::new().expect("event loop");
     event_loop.set_control_flow(winit::event_loop::ControlFlow::Poll);
-    let mut app = App::new(&wasm, scene, max_frames);
+    let mut app = App::new(&wasm, scene, max_frames, screenshot_path);
     event_loop.run_app(&mut app).expect("run");
 }
