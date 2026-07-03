@@ -1,9 +1,12 @@
 # kami-script-runtime-rs
 
-The missing WASM **host** half of the kotoba-lang engine stack. `kotoba-lang/engine`
-(CLJC) compiles a `.clj` game script to a Module IR and, since
-[kotoba-lang/engine#1](https://github.com/kotoba-lang/engine/pull/1), to real
-`.wasm` bytes. This crate loads those bytes with [`wasmtime`](https://wasmtime.dev/),
+The missing WASM **host** half of the kotoba-lang engine stack.
+[`kami-engine-clj`](https://github.com/kotoba-lang/kami-engine/tree/main/kami-engine-clj)
+(CLJC, consolidated from a short-lived standalone `kotoba-lang/engine` repo —
+see its `PROVENANCE.md`) compiles a `.clj` game script to a Module IR and,
+since [kotoba-lang/engine#1](https://github.com/kotoba-lang/engine/pull/1)
+(landed before the consolidation), to real `.wasm` bytes. This crate loads
+those bytes with [`wasmtime`](https://wasmtime.dev/),
 binds the `kami:engine/*` host-imports the compiler's codegen actually emits, and
 drives the guest's `init`/`<name>-tick` lifecycle against a minimal in-memory ECS
 store.
