@@ -186,6 +186,20 @@ fn vs(@builtin(vertex_index) vi: u32,
     o.uv = corner; o.color = color; o.glow = glow;
     return o;
 }
+// Pixel-verification note (investigated 2607-ghost-cyan-accuracy): the value
+// returned here is NOT the final on-screen 8-bit color. Two more transforms
+// happen before a screenshot readback sees it: (1) `in.color + 0.35*halo` at
+// the sprite's exact center (d=0) evaluates `halo = glow*0.8`, so a profile's
+// flat `:color` is measurably brightened by its own `:glow` even in the
+// center pixel, not just at the rim; (2) the swapchain/capture target format
+// is `Bgra8UnormSrgb` (see `Gpu` setup), so the hardware applies a
+// linear->sRGB encode on write — comparing a captured pixel against a raw
+// linear `:color` hex without both corrections will show a large, spurious
+// mismatch that looks like a rendering bug but isn't one. Verified: ghost's
+// `:color [0.161 0.827 0.761] :glow 0.4` predicts (halo=0.32,
+// linear=[0.273,0.939,0.873], sRGB-encoded=[143,248,240]) against an actual
+// captured center pixel of (142,248,240) across all 14 on-screen ghosts in a
+// 300-tick run — effectively exact, not a bug.
 @fragment
 fn fs(in: VSOut) -> @location(0) vec4<f32> {
     let d = length(in.uv);
