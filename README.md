@@ -1,5 +1,24 @@
 # kami-script-runtime-rs
 
+> **⚠ Org direction notice (2026-07-08, ADR-2607078000 addendum).** The
+> `kotoba-lang`/`com-junkawasaki` org's direction is now **Rust-free,
+> including native/windowed targets** — not just the browser/Node path.
+> This crate's headless WASM-host role (`KamiHost`/`bind_scene`/
+> `bind_input`/`bind_random`/`bind_time`, `src/lib.rs`) already has a
+> verified non-Rust replacement:
+> [`kotoba-lang/wasm-webcomponent`'s `kami-engine-host`](https://github.com/kotoba-lang/wasm-webcomponent)
+> (ClojureScript, compiled via shadow-cljs `:target :esm`, runs in browser
+> + Node — parity-verified against this crate's own real fixture, see that
+> repo's README). The `wasmi` no-JIT backend and the `kami_clj_play`
+> native winit+wgpu windowed player added after that (this crate's own
+> recent history) are **not being deprecated or removed by this notice** —
+> they're real, verified, in-progress work by a concurrent session — but a
+> native desktop target going forward should be pursued without new Rust
+> (e.g. a Chromium-shell/webview wrapper around the same browser-proven
+> `dom-gpu`/`kami-engine-host` ClojureScript path, not hand-written
+> wgpu/winit), per this org-wide direction. This is a **documentation-only
+> notice** — no code in this crate has been touched, deleted, or disabled.
+>
 > **Note**: `gftdcojp/isekai-network` (referenced below) is archived — its content moved to `gftdcojp/network-isekai/public/games/gftd/shiro-pico/`.
 
 The missing WASM **host** half of the kotoba-lang engine stack.

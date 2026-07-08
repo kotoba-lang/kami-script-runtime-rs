@@ -2,7 +2,7 @@
 name = "kami-script-runtime-rs"
 version = "0.1.0"
 edition = "2021"
-description = "WASM host (wasmtime) binding kami:engine/* imports to a minimal in-memory ECS store, driving compiled kotoba-lang/engine modules. Recovered/reimplemented substrate: the original kami-script-runtime (kotoba-lang/kami-engine, deleted in the clj-wgsl migration) was classified :stay-Rust-substrate and should never have been removed without a replacement; this repo restores the missing WASM-host half only (bind_scene/bind_input/bind_random/bind_time), scoped to what kotoba-lang/engine's Module IR compiler actually emits today."
+description = "Org direction notice (2026-07-08, ADR-2607078000 addendum): kotoba-lang/com-junkawasaki is now Rust-free-including-native. This crate's headless WASM-host role has a verified ClojureScript replacement (kotoba-lang/wasm-webcomponent's kami-engine-host). Docs-only notice, no code changed. Was: WASM host (wasmtime) binding kami:engine/* imports to a minimal in-memory ECS store, driving compiled kotoba-lang/engine modules. Recovered/reimplemented substrate: the original kami-script-runtime (kotoba-lang/kami-engine, deleted in the clj-wgsl migration) was classified :stay-Rust-substrate and should never have been removed without a replacement; this repo restores the missing WASM-host half only (bind_scene/bind_input/bind_random/bind_time), scoped to what kotoba-lang/engine's Module IR compiler actually emits today."
 
 [dependencies]
 wasmtime = "27"
