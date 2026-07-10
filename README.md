@@ -1,3 +1,6 @@
+> **Renamed 2026-07-10 (ADR-2607102200):** `kotoba-lang/kami-script-runtime-rs` → `kotoba-lang/kami-engine-host-rs`.
+> Old GitHub URLs redirect. See root ADR for the full authority/deps map.
+
 # kami-script-runtime-rs
 
 > **⚠ Org direction notice (2026-07-08, ADR-2607078000 addendum).** The
